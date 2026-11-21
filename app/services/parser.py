@@ -4,7 +4,15 @@ import re
 
 
 def _clean(text: str) -> str:
-    return re.sub(r"\s+", " ", text or "").strip()
+    """Normalize whitespace without destroying resume section boundaries."""
+    lines = []
+    for line in (text or "").replace("\r", "\n").split("\n"):
+        normalized = re.sub(r"[ \t\f\v]+", " ", line).strip()
+        if normalized:
+            lines.append(normalized)
+        elif lines and lines[-1] != "":
+            lines.append("")
+    return "\n".join(lines).strip()
 
 
 def extract_text(filename: str, content: bytes) -> str:
@@ -21,7 +29,7 @@ def extract_text(filename: str, content: bytes) -> str:
             reader = PdfReader(BytesIO(content), strict=False)
             pages = []
             for page in reader.pages:
-                pages.append(page.extract_text() or "")
+                pages.append(page.extract_text(extraction_mode="layout") or page.extract_text() or "")
             return _clean("\n".join(pages))
         except Exception as exc:
             raise ValueError(f"Could not read PDF. Make sure it is a valid, non-password-protected PDF. ({type(exc).__name__})")
