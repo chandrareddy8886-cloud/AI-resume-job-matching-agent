@@ -7,7 +7,7 @@ from app.main import app
 from app.services.ai_client import AIProviderError
 
 
-def test_tailor_file_returns_editable_docx_when_ai_provider_is_down(monkeypatch):
+def test_tailor_file_returns_editable_docx_and_pdf_when_ai_provider_is_down(monkeypatch):
     def unavailable(*args, **kwargs):
         raise AIProviderError("Provider temporarily unavailable")
 
@@ -27,8 +27,13 @@ def test_tailor_file_returns_editable_docx_when_ai_provider_is_down(monkeypatch)
     payload = response.json()
     assert payload["generation_mode"] == "evidence_based_fallback"
     assert "PROFESSIONAL SUMMARY" in payload["tailored_resume"]
-    assert payload["download_filename"].endswith(".docx")
-    document = Document(BytesIO(b64decode(payload["docx_base64"])))
+    assert set(payload["downloads"]) == {"docx", "pdf", "txt"}
+    assert payload["downloads"]["docx"]["filename"].endswith(".docx")
+    assert payload["downloads"]["pdf"]["filename"].endswith(".pdf")
+    assert payload["downloads"]["txt"]["filename"].endswith(".txt")
+    document = Document(BytesIO(b64decode(payload["downloads"]["docx"]["base64"])))
     document_text = "\n".join(p.text for p in document.paragraphs)
     assert "Candidate Name" in document_text
     assert "FastAPI" in document_text
+    assert b64decode(payload["downloads"]["pdf"]["base64"]).startswith(b"%PDF")
+    assert "Candidate Name" in b64decode(payload["downloads"]["txt"]["base64"]).decode("utf-8")
