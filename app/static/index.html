@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>Resume Studio | AI Resume & Job Matching Agent</title>
+<style>
+:root{color-scheme:dark;--bg:#090d18;--panel:#111827;--panel2:#151f31;--line:#26344b;--muted:#9aa9bd;--text:#edf3fb;--cyan:#64e4d3;--blue:#8aa7ff;--red:#ff9e9e}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% 0%,#172746 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:34px 22px 70px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:48px}.brand{font-weight:800;letter-spacing:.02em}.brand span{color:var(--cyan)}.badge{border:1px solid #2d5060;border-radius:99px;padding:7px 12px;color:var(--cyan);font-size:12px}
+.hero{max-width:760px;margin-bottom:30px}.eyebrow{color:var(--cyan);text-transform:uppercase;letter-spacing:.16em;font-size:11px;font-weight:800}.hero h1{font-size:clamp(34px,5vw,58px);line-height:1.04;letter-spacing:-.045em;margin:13px 0}.hero p{color:var(--muted);font-size:16px;max-width:660px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:linear-gradient(150deg,#141f31,#0e1625);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 55px #0002}.card h2{font-size:17px;margin:0 0 5px}.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+.drop{border:1px dashed #486078;border-radius:14px;padding:26px 16px;text-align:center;background:#0c1524;cursor:pointer;transition:.2s}.drop:hover,.drop.over{border-color:var(--cyan);background:#10202c}.drop strong{display:block;margin:7px 0}.drop small{color:var(--muted)}input[type=file]{display:none}.file{color:var(--cyan);font-size:13px;margin-top:12px;overflow-wrap:anywhere}
+textarea{width:100%;min-height:245px;resize:vertical;border:1px solid var(--line);border-radius:12px;background:#0b1321;color:var(--text);padding:14px;font:14px/1.6 inherit;outline:none}textarea:focus{border-color:var(--cyan)}
+.actions{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}.btn{border:0;border-radius:11px;padding:13px 18px;background:var(--cyan);color:#061411;font-weight:800;cursor:pointer}.btn:disabled{opacity:.55;cursor:wait}.hint{font-size:12px;color:var(--muted)}
+#status{margin:18px 0;color:var(--muted);min-height:24px}.error{color:var(--red)!important}.results{display:none;margin-top:22px}.scoregrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:15px 0}.score{background:#0c1524;border:1px solid var(--line);border-radius:13px;padding:15px}.score b{display:block;font-size:27px;color:var(--cyan)}.score span{font-size:12px;color:var(--muted)}
+.pills{display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid #315b55;color:#a5f0df;background:#112822;padding:5px 9px;border-radius:99px;font-size:12px}.pill.missing{border-color:#684c42;background:#2a1c1a;color:#ffc2a7}
+.resultcard{margin-top:14px}.resultcard h3{font-size:14px;margin:0 0 10px}.resultcard p,.resultcard li{color:#c4cfdd;font-size:14px}.resumeout{white-space:pre-wrap;max-height:580px;overflow:auto;background:#0a1220;border:1px solid var(--line);border-radius:12px;padding:18px;font:13px/1.7 ui-monospace,SFMono-Regular,Consolas,monospace}
+footer{margin-top:38px;color:#73839a;font-size:12px;text-align:center}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.top{margin-bottom:34px}.scoregrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="top"><div class="brand">RESUME<span>STUDIO</span></div><div class="badge">AI-POWERED CAREER TOOL</div></header>
+<section class="hero"><div class="eyebrow">Your next application, sharper</div><h1>Make your resume<br>fit the opportunity.</h1><p>Upload your resume and paste the job description. Get a skills match, clear gap analysis, and a tailored draft that keeps your experience truthful.</p></section>
+<section class="grid">
+<div class="card"><h2>01 / Your resume</h2><p class="sub">PDF, DOCX, TXT or Markdown · max 10 MB recommended</p>
+<label class="drop" id="drop" for="resume"><div style="font-size:28px">↥</div><strong>Drop your resume here</strong><small>or click to browse files</small><input id="resume" type="file" accept=".pdf,.docx,.txt,.md"><div class="file" id="filename">No file selected</div></label>
+<div class="hint" style="margin-top:14px">Your file is processed for this request and is not saved as an application record.</div></div>
+<div class="card"><h2>02 / Target job</h2><p class="sub">Paste the full job description for a more useful comparison.</p><textarea id="job" placeholder="Paste the job title, responsibilities, required skills and qualifications..."></textarea></div>
+</section>
+<div class="actions"><button class="btn" id="run">Analyze & tailor resume ↗</button><span class="hint">You'll be able to review and download the draft before using it.</span></div>
+<div id="status" role="status"></div>
+<section class="results" id="results">
+<div class="card"><h2>Match report</h2><p class="sub">A structured comparison of your resume against this role.</p><div class="scoregrid" id="scores"></div>
+<div class="resultcard"><h3>Skills already evidenced</h3><div class="pills" id="matched"></div></div>
+<div class="resultcard"><h3>Skills to address</h3><div class="pills" id="missing"></div></div>
+<div class="resultcard"><h3>AI notes</h3><p id="analysis"></p></div>
+</div>
+<div class="card resultcard"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h2>Tailored resume draft</h2><p class="sub">Review carefully. Never submit claims you cannot defend.</p></div><button class="btn" id="download" type="button">Download .txt ↓</button></div><div class="resumeout" id="tailored">Your tailored resume will appear here.</div></div>
+</section>
+<footer>Built with FastAPI · TF-IDF matching · optional OpenAI-powered resume editing</footer>
+</main>
+<script>
+const fileInput=document.getElementById('resume'),drop=document.getElementById('drop'),run=document.getElementById('run'),statusBox=document.getElementById('status');
+let tailoredText='';
+fileInput.addEventListener('change',()=>{document.getElementById('filename').textContent=fileInput.files[0]?.name||'No file selected'});
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>{if(e.dataTransfer.files.length){fileInput.files=e.dataTransfer.files;fileInput.dispatchEvent(new Event('change'))}});
+function pills(id,items,missing=false){const el=document.getElementById(id);el.innerHTML='';(items||[]).forEach(v=>{const s=document.createElement('span');s.className='pill'+(missing?' missing':'');s.textContent=v;el.appendChild(s)});if(!items?.length)el.textContent='None identified.'}
+function score(label,value){return '<div class="score"><b>'+Number(value||0).toFixed(1)+'%</b><span>'+label+'</span></div>'}
+run.addEventListener('click',async()=>{
+ const file=fileInput.files[0],job=document.getElementById('job').value.trim();
+ if(!file){statusBox.textContent='Choose your resume first.';statusBox.className='error';return}
+ if(!job){statusBox.textContent='Paste the job description first.';statusBox.className='error';return}
+ if(file.size>10*1024*1024){statusBox.textContent='This file is over 10 MB. Please use a smaller file.';statusBox.className='error';return}
+ run.disabled=true;statusBox.className='';statusBox.textContent='Reading your resume and calculating the match…';
+ const form=new FormData();form.append('resume',file);form.append('job_description',job);
+ try{
+  const matchRes=await fetch('/match-file',{method:'POST',body:form});const match=await matchRes.json();
+  if(!matchRes.ok)throw new Error(match.detail||'Resume analysis failed.');
+  document.getElementById('scores').innerHTML=score('Overall match',match.overall_match_score)+score('Skill match',match.skill_match_score)+score('Text similarity',match.text_similarity_score);
+  pills('matched',match.matched_skills);pills('missing',match.missing_skills,true);
+  const ai=match.ai_analysis||{};let summary=ai.analysis||ai.summary||'Analysis completed using the deterministic matching engine.';document.getElementById('analysis').textContent=summary;
+  statusBox.textContent='Match report ready. Generating your tailored draft…';
+  const tailorForm=new FormData();tailorForm.append('resume',file);tailorForm.append('job_description',job);
+  const tailorRes=await fetch('/tailor-file',{method:'POST',body:tailorForm});const tailored=await tailorRes.json();
+  if(!tailorRes.ok)throw new Error(tailored.detail||'Resume tailoring failed.');
+  tailoredText=tailored.tailored_resume;document.getElementById('tailored').textContent=tailoredText;
+  document.getElementById('results').style.display='block';statusBox.textContent='Done. Review the draft carefully before using it.';
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(err){statusBox.textContent=err.message;statusBox.className='error'}
+ finally{run.disabled=false}
+});
+document.getElementById('download').addEventListener('click',()=>{if(!tailoredText)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([tailoredText],{type:'text/plain;charset=utf-8'}));a.download='tailored-resume.txt';a.click();URL.revokeObjectURL(a.href)});
+</script></body></html>
