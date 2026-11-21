@@ -30,21 +30,42 @@ SKILL_ALIASES = {
     "playwright": ["playwright"],
     "linux": ["linux"],
     "ci/cd": ["ci/cd", "cicd", "continuous integration", "continuous delivery"],
+    "customer service": ["customer service", "customer care", "client service", "customer satisfaction"],
+    "customer support": ["customer support", "client support", "customer assistance"],
+    "technical support": ["technical support", "product support", "IT support", "help desk", "helpdesk", "service desk"],
+    "troubleshooting": ["troubleshooting", "troubleshoot", "diagnose issues", "issue diagnosis", "problem diagnosis"],
+    "problem solving": ["problem solving", "problem-solving", "root cause analysis", "root-cause analysis"],
+    "communication": ["communication skills", "verbal communication", "written communication", "interpersonal skills"],
+    "documentation": ["documentation", "documenting", "technical documentation", "knowledge base", "self-help documents"],
+    "issue escalation": ["escalation", "escalate", "escalating issues"],
+    "incident management": ["incident management", "incident resolution", "incident handling"],
+    "ticketing systems": ["ticketing system", "ticketing tools", "service now", "servicenow", "jira service management"],
+    "call handling": ["call handling", "call logs", "email support", "phone support", "inbound calls"],
+    "crm": ["crm", "customer relationship management", "salesforce"],
+    "sla": ["sla", "service level agreement", "service level agreements"],
+    "time management": ["time management", "prioritization", "prioritisation"],
+    "active listening": ["active listening", "listening skills"],
+    "teamwork": ["teamwork", "team player", "cross-functional collaboration"],
+    "data analysis": ["data analysis", "data analytics", "analyze data", "analyse data"],
+    "excel": ["excel", "microsoft excel", "spreadsheets"],
+    "networking": ["networking", "tcp/ip", "dns", "dhcp"],
+    "windows": ["windows", "windows 10", "windows 11"],
+    "cybersecurity": ["cybersecurity", "information security", "security best practices"],
 }
 
 def _normalise(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower())
+    return re.sub(r"\\s+", " ", text.lower())
 
 def extract_skills(text: str) -> List[str]:
-    t = _normalise(text)
+    normalized = _normalise(text)
     found = []
     for canonical, aliases in SKILL_ALIASES.items():
-        if any(re.search(r"(?<!\w)" + re.escape(alias.lower()) + r"(?!\w)", t) for alias in aliases):
+        if any(re.search(r"(?<!\\w)" + re.escape(alias.lower()) + r"(?!\\w)", normalized) for alias in aliases):
             found.append(canonical)
-    return sorted(found)
+    return sorted(set(found))
 
 def retrieve_relevant_resume_sentences(resume_text: str, job_description: str, top_k: int = 5):
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|\n+", resume_text) if len(s.strip()) > 15]
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\\s+|\\n+", resume_text) if len(s.strip()) > 15]
     if not sentences:
         return []
     corpus = sentences + [job_description]
@@ -59,11 +80,10 @@ def match_resume_to_job(resume_text: str, job_description: str) -> Dict:
     matched = sorted(resume_skills & job_skills)
     missing = sorted(job_skills - resume_skills)
 
-    skill_score = (len(matched) / len(job_skills) * 100) if job_skills else 0
+    skill_score = (len(matched) / len(job_skills) * 100) if job_skills else 0.0
     tfidf = TfidfVectorizer(stop_words="english")
     matrix = tfidf.fit_transform([resume_text, job_description])
     similarity = float(cosine_similarity(matrix[0:1], matrix[1:2])[0][0]) * 100
-
     overall = round((skill_score * 0.7) + (similarity * 0.3), 2)
 
     return {
