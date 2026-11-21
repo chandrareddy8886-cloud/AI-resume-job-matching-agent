@@ -11,10 +11,11 @@ from app.services.parser import extract_text
 from app.services.matcher import match_resume_to_job
 from app.services.llm import generate_ai_analysis
 from app.services.local_tailor import build_local_tailored_resume
+from app.services.resume_quality import validate_tailored_resume
 
 app = FastAPI(
     title="AI Resume & Job Matching Agent",
-    version="1.4.0",
+    version="1.5.0",
     description="Resume parsing, job matching, and evidence-based resume tailoring API.",
 )
 
@@ -129,12 +130,15 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
         )
         if len(tailored.strip()) < 300 or "as an ai" in tailored.lower()[:500]:
             raise AIProviderError("Provider returned an incomplete resume.")
-    except AIProviderError:
+        quality = validate_tailored_resume(resume_text, tailored)
+        if not quality.passed:
+            raise AIProviderError("AI draft failed factuality checks: " + "; ".join(quality.issues))
+    except AIProviderError as exc:
         tailored = build_local_tailored_resume(resume_text, job_description)
         generation_mode = "evidence_based_fallback"
         note = (
-            "AI providers were unavailable. This structured fallback reorganizes existing resume "
-            "evidence around the scored role match; it does not invent missing qualifications."
+            "AI draft did not pass the resume quality gate (" + str(exc) + "). "
+            "A structured fallback was used to preserve source evidence. Review the result before applying."
         )
 
     from app.services.resume_document import build_ats_docx, build_ats_pdf
