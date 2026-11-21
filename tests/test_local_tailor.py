@@ -38,7 +38,8 @@ def test_fallback_removes_duplicate_source_blocks_and_stale_objective():
         "PROJECTS\nBuilt a Python expense tracker with file handling.\n"
         "CERTIFICATIONS AND SELF-STUDY\nPython Essentials 1 - Cisco\n"
     )
-    result = build_local_tailored_resume(resume, "SQL and Python Production Support Engineer")
+    jd = "Job Title: SQL and Python Production Support Engineer\nLocation: Bangalore\nSQL Python"
+    result = build_local_tailored_resume(resume, jd)
     assert result.count("K. Candidate") == 1
     assert result.count("B.Tech Computer Science 2026") == 1
     assert "RESUME DETAILS" not in result
@@ -49,6 +50,7 @@ def test_fallback_removes_duplicate_source_blocks_and_stale_objective():
 
 def test_summary_does_not_claim_missing_cloud_or_incident_experience():
     resume = "Candidate Name\nTECHNICAL SKILLS\nPython | SQL\nPROJECTS\nBuilt a Python data tool.\n"
-    result = build_local_tailored_resume(resume, "SQL Python Cloud Production Support Engineer AWS incident management")
+    jd = "Job Title: SQL Python Cloud Production Support Engineer\nAWS incident management"
+    result = build_local_tailored_resume(resume, jd)
     assert "AWS" not in result
     assert "incident management" not in result.lower()
