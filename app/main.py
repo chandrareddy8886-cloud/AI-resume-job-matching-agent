@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from app.services.ai_client import AIProviderError, chat_completion
@@ -78,7 +79,7 @@ async def match_file(resume: UploadFile = File(...), job_description: str = Form
     if not job_description.strip():
         raise HTTPException(status_code=400, detail="A job description is required.")
     resume_text = await read_resume(resume)
-    result = analyze_resume(resume_text, job_description)
+    result = await run_in_threadpool(analyze_resume, resume_text, job_description)
     result["resume_text"] = resume_text
     return result
 
@@ -103,7 +104,7 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
         + resume_text[:12000]
     )
     try:
-        tailored = chat_completion(
+        tailored = await run_in_threadpool(chat_completion,
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
