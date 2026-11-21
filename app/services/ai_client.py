@@ -85,27 +85,38 @@ def chat_completion(messages, *, response_format=None, max_tokens=6000):
         method="POST",
     )
 
-    try:
-        with urlopen(request, timeout=75) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except HTTPError as exc:
-        detail = _error_detail(exc.read())
-        if exc.code in (401, 403):
+    # Retry brief provider capacity/network spikes; do not retry permanent errors.
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=60) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except HTTPError as exc:
+            detail = _error_detail(exc.read())
+            if exc.code in (429, 500, 502, 503, 504) and attempt < 2:
+                import time
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            if exc.code in (401, 403):
+                raise AIProviderError(
+                    f"{provider} rejected authentication or model access (HTTP {exc.code}): {detail}. "
+                    "Check that the key belongs to this provider and that the selected model is enabled."
+                ) from None
             raise AIProviderError(
-                f"{provider} rejected authentication or model access (HTTP {exc.code}): {detail}. "
-                "Check that the key belongs to this provider and that the selected model is enabled."
+                f"{provider} API returned HTTP {exc.code}: {detail}"
             ) from None
-        raise AIProviderError(
-            f"{provider} API returned HTTP {exc.code}: {detail}"
-        ) from None
-    except (URLError, TimeoutError) as exc:
-        raise AIProviderError(
-            f"Could not reach {provider}: {type(exc).__name__}."
-        ) from None
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        raise AIProviderError(
-            f"{provider} returned an invalid JSON response."
-        ) from None
+        except (URLError, TimeoutError) as exc:
+            if attempt < 2:
+                import time
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise AIProviderError(
+                f"Could not reach {provider}: {type(exc).__name__}."
+            ) from None
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise AIProviderError(
+                f"{provider} returned an invalid JSON response."
+            ) from None
 
     choices = data.get("choices") or []
     if not choices:
