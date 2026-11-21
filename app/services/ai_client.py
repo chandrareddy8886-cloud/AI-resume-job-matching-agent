@@ -23,7 +23,7 @@ def _provider_configs():
         "groq": {
             "key": groq_key,
             "base_url": os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
-            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
+            "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
         },
         "openrouter": {
             "key": openrouter_key,
@@ -125,7 +125,6 @@ def chat_completion(messages, *, response_format=None, max_tokens=6000):
         except HTTPError as exc:
             detail = _error_detail(exc.read())
             failures.append(f"{provider} HTTP {exc.code}: {detail}")
-            # Auth/model errors are provider-specific; try the next configured provider.
             continue
         except (URLError, TimeoutError, OSError, json.JSONDecodeError, AIProviderError) as exc:
             failures.append(f"{provider}: {str(exc)[:250]}")
