@@ -24,7 +24,7 @@ def _provider_config():
                 "GEMINI_BASE_URL",
                 "https://generativelanguage.googleapis.com/v1beta/openai",
             ).rstrip("/"),
-            os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
             "Gemini",
         )
 
