@@ -1,7 +1,9 @@
 import re
 from typing import List, Dict
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
 
 SKILL_ALIASES = {
     "python": ["python"],
@@ -9,7 +11,7 @@ SKILL_ALIASES = {
     "fastapi": ["fastapi"],
     "flask": ["flask"],
     "django": ["django"],
-    "rest api": ["rest api", "restful api", "rest"],
+    "rest api": ["rest api", "restful api"],
     "git": ["git", "github"],
     "docker": ["docker", "containerization", "containers"],
     "kubernetes": ["kubernetes", "k8s"],
@@ -23,8 +25,7 @@ SKILL_ALIASES = {
     "scikit-learn": ["scikit-learn", "sklearn"],
     "llm": ["llm", "large language model", "generative ai"],
     "rag": ["rag", "retrieval augmented generation", "retrieval-augmented generation"],
-    "openai api": ["openai api", "openai"],
-    "postgresql": ["postgresql", "postgres"],
+    "openai api": ["openai api"],
     "pytest": ["pytest"],
     "selenium": ["selenium"],
     "playwright": ["playwright"],
@@ -32,7 +33,7 @@ SKILL_ALIASES = {
     "ci/cd": ["ci/cd", "cicd", "continuous integration", "continuous delivery"],
     "customer service": ["customer service", "customer care", "client service", "customer satisfaction"],
     "customer support": ["customer support", "client support", "customer assistance"],
-    "technical support": ["technical support", "product support", "IT support", "help desk", "helpdesk", "service desk"],
+    "technical support": ["technical support", "product support", "it support", "help desk", "helpdesk", "service desk"],
     "troubleshooting": ["troubleshooting", "troubleshoot", "diagnose issues", "issue diagnosis", "problem diagnosis"],
     "problem solving": ["problem solving", "problem-solving", "root cause analysis", "root-cause analysis"],
     "communication": ["communication skills", "verbal communication", "written communication", "interpersonal skills"],
@@ -53,36 +54,52 @@ SKILL_ALIASES = {
     "cybersecurity": ["cybersecurity", "information security", "security best practices"],
 }
 
+
 def _normalise(text: str) -> str:
-    return re.sub(r"\\s+", " ", text.lower())
+    return re.sub(r"\s+", " ", (text or "").casefold())
+
 
 def extract_skills(text: str) -> List[str]:
     normalized = _normalise(text)
     found = []
     for canonical, aliases in SKILL_ALIASES.items():
-        if any(re.search(r"(?<!\\w)" + re.escape(alias.lower()) + r"(?!\\w)", normalized) for alias in aliases):
-            found.append(canonical)
+        for alias in aliases:
+            pattern = r"(?<!\w)" + re.escape(alias.casefold()) + r"(?!\w)"
+            if re.search(pattern, normalized):
+                found.append(canonical)
+                break
     return sorted(set(found))
 
+
 def retrieve_relevant_resume_sentences(resume_text: str, job_description: str, top_k: int = 5):
-    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\\s+|\\n+", resume_text) if len(s.strip()) > 15]
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", resume_text)
+        if len(sentence.strip()) > 15
+    ]
     if not sentences:
         return []
     corpus = sentences + [job_description]
     matrix = TfidfVectorizer(stop_words="english").fit_transform(corpus)
     scores = cosine_similarity(matrix[-1], matrix[:-1]).flatten()
-    ranked = sorted(zip(sentences, scores), key=lambda x: x[1], reverse=True)
-    return [{"text": s, "score": round(float(score), 4)} for s, score in ranked[:top_k]]
+    ranked = sorted(zip(sentences, scores), key=lambda item: item[1], reverse=True)
+    return [{"text": sentence, "score": round(float(score), 4)} for sentence, score in ranked[:top_k]]
+
 
 def match_resume_to_job(resume_text: str, job_description: str) -> Dict:
+    if not resume_text or not resume_text.strip():
+        raise ValueError("Resume text is empty.")
+    if not job_description or not job_description.strip():
+        raise ValueError("Job description is empty.")
+
     resume_skills = set(extract_skills(resume_text))
     job_skills = set(extract_skills(job_description))
     matched = sorted(resume_skills & job_skills)
     missing = sorted(job_skills - resume_skills)
 
     skill_score = (len(matched) / len(job_skills) * 100) if job_skills else 0.0
-    tfidf = TfidfVectorizer(stop_words="english")
-    matrix = tfidf.fit_transform([resume_text, job_description])
+    vectorizer = TfidfVectorizer(stop_words="english")
+    matrix = vectorizer.fit_transform([resume_text, job_description])
     similarity = float(cosine_similarity(matrix[0:1], matrix[1:2])[0][0]) * 100
     overall = round((skill_score * 0.7) + (similarity * 0.3), 2)
 
