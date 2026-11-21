@@ -38,7 +38,7 @@ def test_chat_completion_sends_groq_payload(monkeypatch):
     assert text == "A tailored resume"
     assert captured["url"] == "https://api.groq.com/openai/v1/chat/completions"
     assert captured["payload"]["model"] == "openai/gpt-oss-20b"
-    assert captured["payload"]["include_reasoning"] is False
+    assert "include_reasoning" not in captured["payload"]
 
 
 def test_chat_completion_rejects_empty_model_output(monkeypatch):
