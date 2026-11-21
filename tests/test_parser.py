@@ -7,11 +7,11 @@ from app.services.parser import extract_text
 
 
 def test_plain_text_extraction():
-    assert extract_text("resume.txt", b"Python\\nFastAPI") == "Python FastAPI"
+    assert extract_text("resume.txt", b"Python\nFastAPI") == "Python FastAPI"
 
 
 def test_markdown_extraction():
-    assert extract_text("resume.md", b"# Resume\\nSQL and Python") == "# Resume SQL and Python"
+    assert extract_text("resume.md", b"# Resume\nSQL and Python") == "# Resume SQL and Python"
 
 
 def test_docx_paragraph_and_table_extraction():
