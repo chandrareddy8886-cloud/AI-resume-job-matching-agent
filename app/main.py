@@ -35,7 +35,16 @@ def analyze_resume(resume_text: str, job_description: str):
 
 @app.get("/", include_in_schema=False)
 def home():
-    return FileResponse(STATIC_DIR / "index.html")
+    # Prevent browsers and intermediary caches from serving an older landing page
+    # immediately after a new frontend deployment.
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.get("/health")
