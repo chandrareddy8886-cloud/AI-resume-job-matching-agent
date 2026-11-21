@@ -86,8 +86,7 @@ def _add_docx_link(paragraph, text, target):
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
         is_external=True,
     )
-    hyperlink = paragraph._p.add_hyperlink(text, relationship) if hasattr(paragraph._p, "add_hyperlink") else None
-    if hyperlink is None:
+    hyperlink = None
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
         hyperlink = OxmlElement("w:hyperlink")
