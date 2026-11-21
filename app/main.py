@@ -10,6 +10,7 @@ from app.services.ai_client import AIProviderError, chat_completion
 from app.services.parser import extract_text
 from app.services.matcher import match_resume_to_job
 from app.services.llm import generate_ai_analysis
+from app.services.local_tailor import build_local_tailored_resume
 
 app = FastAPI(
     title="AI Resume & Job Matching Agent",
@@ -111,9 +112,17 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
             ],
             max_tokens=7000,
         )
-    except AIProviderError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except AIProviderError:
+        # Keep tailoring available during Gemini outages. The local fallback
+        # only reorders evidence and skills already present in the source resume.
+        tailored = build_local_tailored_resume(resume_text, job_description)
+        return {
+            "tailored_resume": tailored,
+            "generation_mode": "local_fallback",
+            "note": "AI provider was temporarily unavailable. This evidence-based local draft uses only information in your original resume; review it before submitting.",
+        }
     return {
         "tailored_resume": tailored,
+        "generation_mode": "ai",
         "note": "Review every detail before using or submitting this resume.",
     }
