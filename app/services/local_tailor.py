@@ -15,7 +15,7 @@ SECTION_ALIASES = {
 HEADING_NAMES = {alias for aliases in SECTION_ALIASES.values() for alias in aliases}
 HEADING_RE = re.compile(
     r"(?i)(?=\b(?:" + "|".join(re.escape(x) for x in sorted(HEADING_NAMES, key=len, reverse=True)) +
-    r"|resume details|objective)\b)"
+    r"|resume details)\b)"
 )
 
 
@@ -37,21 +37,18 @@ def _split_sections(text):
         line = _normalize_line(raw_line)
         if not line:
             continue
-        # Handle PDF extractors that put a heading and its content on one line.
-        pieces = [p for p in HEADING_RE.split(line) if p and p.strip()]
-        for piece in pieces:
+        for piece in (p for p in HEADING_RE.split(line) if p and p.strip()):
             expanded.append(_normalize_line(piece))
 
     header, sections, current = [], {}, None
     for line in expanded:
-        lowered = line.lower()
-        if lowered == "resume details":
+        if line.lower() == "resume details":
             current = None
             continue
         name = _section_name(line)
         if name:
             current = name
-            sections.setdefault(name, [])
+            sections.setdefault(current, [])
         elif current:
             sections[current].append(line)
         else:
@@ -71,9 +68,8 @@ def _dedupe(lines):
 
 
 def _target_title(job_description):
-    first = next((x.strip() for x in job_description.splitlines() if x.strip()), "")
-    match = re.search(r"(?i)(?:job title\s*:\s*)?([^\n|]{4,90})", first)
-    return match.group(1).strip(" *:#") if match else "the target role"
+    labelled = re.search(r"(?im)^\s*(?:\*\*)?job title\s*:\s*([^\n*]+)", job_description or "")
+    return labelled.group(1).strip(" *:#") if labelled else "the target role"
 
 
 def _build_summary(job_description, matched, sections):
@@ -95,62 +91,6 @@ def _build_summary(job_description, matched, sections):
     return summary
 
 
-def build_local_tailored_resume(resume_text: str, job_description: str) -> str:
-    """Reorder and rewrite existing evidence; never append the raw resume a second time."""
-    match = match_resume_to_job(resume_text, job_description)
-    matched = [s for s in match.get("matched_skills", []) if s]
-    header, sections = _split_sections(resume_text)
-
-    # Recover identity/contact lines even if the source has no recognizable headings.
-    header = _dedupe(header)[:6]
-    sections = {key: _dedupe(value) for key, value in sections.items()}
-    if not sections:
-        # Fail safely: do not fabricate a summary or duplicate the entire source.
-        body = _dedupe((resume_text or "").splitlines())
-        return "\n".join(header + ["", "PROFILE", "Entry-level candidate with project-based technical experience."] +
-                         ["", "ADDITIONAL INFORMATION"] + body[:18]).strip()
-
-    lines = header[:]
-    lines.extend(["", "PROFESSIONAL SUMMARY", _build_summary(job_description, matched, sections)])
-
-    # Put the strongest technical evidence first; retain only facts already in the source.
-    skills = sections.get("technical skills", [])
-    if skills:
-        lines.extend(["", "TECHNICAL SKILLS"])
-        skill_text = " | ".join(skills)
-        ordered = []
-        for skill in matched:
-            if re.search(r"(?i)\b" + re.escape(skill) + r"\b", skill_text):
-                ordered.append(skill)
-        if ordered:
-            lines.append("Relevant: " + " | ".join(dict.fromkeys(ordered)))
-        lines.extend(x for x in skills if x.lower() not in {s.lower() for s in ordered})
-
-    if sections.get("experience"):
-        lines.extend(["", "PROFESSIONAL EXPERIENCE"])
-        lines.extend(sections["experience"])
-
-    if sections.get("projects"):
-        lines.extend(["", "SELECTED PROJECTS"])
-        project_lines = sections["projects"]
-        # Prioritize project entries containing more matched role evidence.
-        if matched:
-            def relevance(item):
-                return sum(1 for skill in matched if re.search(r"(?i)\b" + re.escape(skill) + r"\b", item))
-            project_lines = sorted(enumerate(project_lines), key=lambda pair: (-relevance(pair[1]), pair[0]))
-            project_lines = [item for _, item in project_lines]
-        lines.extend(project_lines)
-
-    for section, heading in (("education", "EDUCATION"), ("certifications", "CERTIFICATIONS"),
-                             ("achievements", "ACHIEVEMENTS"), ("languages", "LANGUAGES")):
-        content = sections.get(section, [])
-        if content:
-            lines.extend(["", heading])
-            lines.extend(content)
-
-    return "\n".join(_dedupe_preserving_structure(lines)).strip()
-
-
 def _dedupe_preserving_structure(lines):
     result, seen = [], set()
     for line in lines:
@@ -165,3 +105,49 @@ def _dedupe_preserving_structure(lines):
         seen.add(key)
         result.append(value)
     return result
+
+
+def build_local_tailored_resume(resume_text: str, job_description: str) -> str:
+    """Reorder and rewrite existing evidence; never append the raw resume a second time."""
+    match = match_resume_to_job(resume_text, job_description)
+    matched = [s for s in match.get("matched_skills", []) if s]
+    header, sections = _split_sections(resume_text)
+    header = _dedupe(header)[:6]
+    sections = {key: _dedupe(value) for key, value in sections.items()}
+
+    if not sections:
+        body = _dedupe((resume_text or "").splitlines())
+        return "\n".join(header + ["", "PROFILE", "Entry-level candidate with project-based technical experience.",
+                                    "", "ADDITIONAL INFORMATION"] + body[:18]).strip()
+
+    lines = header[:]
+    lines.extend(["", "PROFESSIONAL SUMMARY", _build_summary(job_description, matched, sections)])
+
+    skills = sections.get("technical skills", [])
+    if skills:
+        lines.extend(["", "TECHNICAL SKILLS"])
+        skill_text = " ".join(skills)
+        ordered = [s for s in matched if re.search(r"(?i)\b" + re.escape(s) + r"\b", skill_text)]
+        if ordered:
+            lines.append("Relevant: " + " | ".join(dict.fromkeys(ordered)))
+        lines.extend(x for x in skills if x.lower() not in {s.lower() for s in ordered})
+
+    if sections.get("experience"):
+        lines.extend(["", "PROFESSIONAL EXPERIENCE"] + sections["experience"])
+
+    if sections.get("projects"):
+        project_lines = sections["projects"]
+        if matched:
+            indexed = list(enumerate(project_lines))
+            indexed.sort(key=lambda pair: (-sum(1 for skill in matched if re.search(
+                r"(?i)\b" + re.escape(skill) + r"\b", pair[1])), pair[0]))
+            project_lines = [item for _, item in indexed]
+        lines.extend(["", "SELECTED PROJECTS"] + project_lines)
+
+    for section, heading in (("education", "EDUCATION"), ("certifications", "CERTIFICATIONS"),
+                             ("achievements", "ACHIEVEMENTS"), ("languages", "LANGUAGES")):
+        content = sections.get(section, [])
+        if content:
+            lines.extend(["", heading] + content)
+
+    return "\n".join(_dedupe_preserving_structure(lines)).strip()
