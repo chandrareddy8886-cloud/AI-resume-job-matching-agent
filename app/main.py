@@ -137,14 +137,31 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
             "evidence around the scored role match; it does not invent missing qualifications."
         )
 
-    from app.services.resume_document import build_ats_docx
+    from app.services.resume_document import build_ats_docx, build_ats_pdf
     import base64
 
-    docx_bytes = await run_in_threadpool(build_ats_docx, tailored)
+    docx_bytes, pdf_bytes = await run_in_threadpool(
+        lambda: (build_ats_docx(tailored), build_ats_pdf(tailored))
+    )
     return {
         "tailored_resume": tailored,
         "generation_mode": generation_mode,
         "note": note,
-        "download_filename": "NextRole_ATS_Tailored_Resume.docx",
-        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
+        "downloads": {
+            "docx": {
+                "filename": "NextRole_ATS_Tailored_Resume.docx",
+                "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "base64": base64.b64encode(docx_bytes).decode("ascii"),
+            },
+            "pdf": {
+                "filename": "NextRole_ATS_Tailored_Resume.pdf",
+                "mime_type": "application/pdf",
+                "base64": base64.b64encode(pdf_bytes).decode("ascii"),
+            },
+            "txt": {
+                "filename": "NextRole_ATS_Tailored_Resume.txt",
+                "mime_type": "text/plain;charset=utf-8",
+                "base64": base64.b64encode(tailored.encode("utf-8")).decode("ascii"),
+            },
+        },
     }
