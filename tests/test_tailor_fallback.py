@@ -25,7 +25,7 @@ def test_tailor_file_returns_editable_docx_when_ai_provider_is_down(monkeypatch)
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["generation_mode"] == "local_fallback"
+    assert payload["generation_mode"] == "evidence_based_fallback"
     assert "PROFESSIONAL SUMMARY" in payload["tailored_resume"]
     assert payload["download_filename"].endswith(".docx")
     document = Document(BytesIO(b64decode(payload["docx_base64"])))
