@@ -12,7 +12,7 @@ from app.services.llm import generate_ai_analysis
 
 app = FastAPI(
     title="AI Resume & Job Matching Agent",
-    version="1.2.0",
+    version="1.3.0",
     description="Resume parsing, job matching, and evidence-based resume tailoring API.",
 )
 
@@ -56,10 +56,7 @@ def match_text(payload: JobMatchRequest):
 
 
 @app.post("/match-file")
-async def match_file(
-    resume: UploadFile = File(...),
-    job_description: str = Form(...),
-):
+async def match_file(resume: UploadFile = File(...), job_description: str = Form(...)):
     try:
         content = await resume.read()
         resume_text = extract_text(resume.filename or "", content)
@@ -73,20 +70,13 @@ async def match_file(
 
 
 @app.post("/tailor-file")
-async def tailor_file(
-    resume: UploadFile = File(...),
-    job_description: str = Form(...),
-):
+async def tailor_file(resume: UploadFile = File(...), job_description: str = Form(...)):
     if not job_description.strip():
         raise HTTPException(status_code=400, detail="A job description is required.")
-
-    # Accept either a dedicated Groq key or the existing OPENAI_API_KEY setting.
-    api_key = os.getenv("GROQ_API_KEY") or os.getenv("OPENAI_API_KEY")
+    groq_key = os.getenv("GROQ_API_KEY")
+    api_key = groq_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="Add GROQ_API_KEY (recommended) or OPENAI_API_KEY in Render Environment settings.",
-        )
+        raise HTTPException(status_code=503, detail="Add GROQ_API_KEY or OPENAI_API_KEY in Render Environment settings.")
 
     try:
         content = await resume.read()
@@ -98,56 +88,52 @@ async def tailor_file(
 
     try:
         from openai import OpenAI
-
-        is_groq = bool(os.getenv("GROQ_API_KEY")) or "groq" in os.getenv("OPENAI_BASE_URL", "").lower()
-        base_url = os.getenv("OPENAI_BASE_URL")
-        if is_groq and not base_url:
-            base_url = "https://api.groq.com/openai/v1"
-
+        is_groq = bool(groq_key) or "groq" in os.getenv("OPENAI_BASE_URL", "").lower()
+        base_url = os.getenv("OPENAI_BASE_URL") or ("https://api.groq.com/openai/v1" if is_groq else None)
         client_args = {"api_key": api_key}
         if base_url:
             client_args["base_url"] = base_url
         client = OpenAI(**client_args)
+        model = os.getenv("OPENAI_MODEL", "openai/gpt-oss-20b" if is_groq else "gpt-4o-mini")
 
-        default_model = "llama-3.3-70b-versatile" if is_groq else "gpt-4o-mini"
-        model = os.getenv("OPENAI_MODEL", default_model)
-
-        # Chat Completions is supported by the pinned OpenAI SDK and Groq's
-        # OpenAI-compatible API. The Responses API is not available in SDK 1.59.7.
         completion = client.chat.completions.create(
             model=model,
             temperature=0.2,
+            max_completion_tokens=6000,
+            reasoning_effort="low" if is_groq else None,
+            include_reasoning=False if is_groq else None,
             messages=[
                 {
                     "role": "system",
                     "content": (
-                        "You are an expert resume editor. Tailor the candidate's resume to the job description. "
+                        "You are an expert resume editor. Return the complete tailored resume as plain text. "
                         "Preserve every factual claim, employer, title, date, qualification, project, metric, and skill. "
                         "Never invent experience, skills, credentials, dates, or measurable results. "
                         "You may reorganize, clarify, and improve wording using only evidence in the original resume. "
-                        "If a job requirement is not supported by the resume, do not add it. "
-                        "Return only the complete tailored resume as clean plain text, with clear section headings."
+                        "Do not add unsupported job requirements. Keep useful contact details and section headings."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        "JOB DESCRIPTION:\n" + job_description[:16000]
-                        + "\n\nORIGINAL RESUME:\n" + resume_text[:16000]
+                        "Tailor this resume to the job description.\n\nJOB DESCRIPTION:\n"
+                        + job_description[:12000]
+                        + "\n\nORIGINAL RESUME:\n"
+                        + resume_text[:12000]
                     ),
                 },
             ],
         )
-        tailored = (completion.choices[0].message.content or "").strip()
+        choice = completion.choices[0] if completion.choices else None
+        tailored = ((choice.message.content or "").strip() if choice and choice.message else "")
+        if not tailored and choice and choice.message:
+            tailored = (getattr(choice.message, "refusal", None) or "").strip()
         if not tailored:
-            raise ValueError("The AI returned an empty resume.")
-        return {
-            "tailored_resume": tailored,
-            "note": "Review every detail before using or submitting this resume.",
-        }
+            finish = getattr(choice, "finish_reason", "unknown") if choice else "no_choices"
+            raise ValueError(f"Model returned no resume text (finish_reason={finish}).")
+        return {"tailored_resume": tailored, "note": "Review every detail before using or submitting this resume."}
     except Exception as exc:
-        # Avoid exposing provider credentials or request headers in error messages.
         raise HTTPException(
             status_code=502,
-            detail=f"Resume tailoring failed. Check your API key, model name, and provider settings in Render. ({type(exc).__name__})",
+            detail=f"Resume tailoring failed: {type(exc).__name__}: {str(exc)[:300]}",
         )

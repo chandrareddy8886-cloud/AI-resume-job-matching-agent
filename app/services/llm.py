@@ -24,60 +24,53 @@ def _extract_json(text: str) -> Dict:
 
 
 def generate_ai_analysis(resume_text: str, job_description: str, result: Dict) -> Dict:
-    # Prefer Groq when GROQ_API_KEY is configured. OPENAI_API_KEY remains
-    # supported for a direct OpenAI connection.
     groq_key = os.getenv("GROQ_API_KEY")
     api_key = groq_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
         return {
             "provider": "local-fallback",
             "summary": "AI analysis is disabled because no provider API key is configured.",
-            "strengths": [],
+            "strengths": result.get("matched_skills", []),
             "gaps": result.get("missing_skills", []),
             "recommendations": ["Configure GROQ_API_KEY or OPENAI_API_KEY in Render Environment."],
         }
 
     is_groq = bool(groq_key) or "groq" in os.getenv("OPENAI_BASE_URL", "").lower()
-    base_url = os.getenv("OPENAI_BASE_URL")
-    if is_groq and not base_url:
-        base_url = "https://api.groq.com/openai/v1"
-
+    base_url = os.getenv("OPENAI_BASE_URL") or ("https://api.groq.com/openai/v1" if is_groq else None)
     try:
         from openai import OpenAI
-
         client_args = {"api_key": api_key}
         if base_url:
             client_args["base_url"] = base_url
         client = OpenAI(**client_args)
-
-        default_model = "openai/gpt-oss-20b" if is_groq else "gpt-4o-mini"
-        model = os.getenv("OPENAI_MODEL", default_model)
+        model = os.getenv("OPENAI_MODEL", "openai/gpt-oss-20b" if is_groq else "gpt-4o-mini")
         prompt = (
             "Analyze this resume against the job description. Return ONLY valid JSON with keys: "
             "summary (string), strengths (array of strings), gaps (array of strings), "
             "recommendations (array of strings). Be specific, concise, and truthful. "
-            "Do not claim the candidate has skills or experience absent from the resume.\n\n"
-            f"DETERMINISTIC MATCH DATA:\n{json.dumps(result, ensure_ascii=False)}\n\n"
-            f"RESUME:\n{resume_text[:12000]}\n\n"
-            f"JOB DESCRIPTION:\n{job_description[:12000]}"
+            "Do not claim skills or experience absent from the resume.\n\n"
+            f"MATCH DATA:\n{json.dumps(result, ensure_ascii=False)}\n\n"
+            f"RESUME:\n{resume_text[:10000]}\n\nJOB DESCRIPTION:\n{job_description[:10000]}"
         )
         completion = client.chat.completions.create(
             model=model,
             temperature=0.2,
+            max_completion_tokens=2500,
+            reasoning_effort="low" if is_groq else None,
+            include_reasoning=False if is_groq else None,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a careful, evidence-based career and resume analyst."},
+                {"role": "system", "content": "You are a careful, evidence-based career analyst. Return valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
         )
-        analysis = _extract_json(completion.choices[0].message.content or "")
+        content = completion.choices[0].message.content if completion.choices else ""
+        analysis = _extract_json(content or "")
         if not analysis:
-            raise ValueError("The model returned invalid JSON.")
+            raise ValueError("The model returned empty or invalid JSON.")
         analysis["provider"] = "groq" if is_groq else "openai"
         return analysis
     except Exception as exc:
-        # Keep deterministic results available, but make provider failure visible
-        # without leaking secrets or request headers into the API response.
         return {
             "provider": "local-fallback",
             "summary": "AI analysis is temporarily unavailable; deterministic matching results are shown.",
