@@ -36,6 +36,6 @@ def build_local_tailored_resume(resume_text: str, job_description: str) -> str:
     lines.extend([
         "",
         "ORIGINAL RESUME (preserved; no qualifications, employers, dates, or metrics added)",
-        resume_text.strip(),
+        resume_text,
     ])
     return "\n".join(lines)
