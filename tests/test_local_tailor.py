@@ -54,3 +54,29 @@ def test_summary_does_not_claim_missing_cloud_or_incident_experience():
     result = build_local_tailored_resume(resume, jd)
     assert "AWS" not in result
     assert "incident management" not in result.lower()
+
+
+
+def test_project_titles_stay_attached_to_their_own_bullets_when_reordered():
+    resume = (
+        "Candidate Name\n"
+        "TECHNICAL SKILLS\nPython | SQL | FastAPI | Docker\n"
+        "PROJECTS\n"
+        "Inventory Management System | Python, FastAPI, PostgreSQL\n"
+        "■ Built REST APIs for inventory and order processing.\n"
+        "■ Used SQLAlchemy for relational data models.\n"
+        "Dockerized CI/CD Application | Python, Docker, GitHub Actions\n"
+        "■ Built a CI pipeline to run tests and publish container images.\n"
+        "EDUCATION\nB.Tech Computer Science 2026\n"
+    )
+    result = build_local_tailored_resume(
+        resume,
+        "Job Title: Python Backend Developer\nPython FastAPI Docker PostgreSQL"
+    )
+    inventory = result.index("Inventory Management System")
+    inventory_bullet = result.index("Built REST APIs for inventory")
+    inventory_second = result.index("Used SQLAlchemy")
+    docker_project = result.index("Dockerized CI/CD Application")
+    docker_bullet = result.index("Built a CI pipeline")
+    assert inventory < inventory_bullet < inventory_second < docker_project < docker_bullet
+    assert result.count("SELECTED PROJECTS") == 1

@@ -6,9 +6,15 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
+      - key: AI_PROVIDER
+        value: groq
       - key: GROQ_API_KEY
         sync: false
-      - key: OPENAI_BASE_URL
-        value: https://api.groq.com/openai/v1
-      - key: OPENAI_MODEL
+      - key: GROQ_MODEL
         value: openai/gpt-oss-20b
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-oss-20b:free
+      - key: AI_REQUEST_TIMEOUT_SECONDS
+        value: "8"

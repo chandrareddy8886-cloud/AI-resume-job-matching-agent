@@ -21,7 +21,7 @@ HEADINGS = {
     "education", "certifications", "certificates", "achievements", "awards",
     "languages",
 }
-BULLET_PREFIXES = ("-", "•", "*", "▪", "●")
+BULLET_PREFIXES = ("-", "•", "*", "▪", "●", "■")
 
 # Match explicit web links, email addresses and phone-like contact numbers.
 LINK_PATTERN = re.compile(
@@ -86,25 +86,25 @@ def _add_docx_link(paragraph, text, target):
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
         is_external=True,
     )
-    hyperlink = None
-        from docx.oxml import OxmlElement
-        from docx.oxml.ns import qn
-        hyperlink = OxmlElement("w:hyperlink")
-        hyperlink.set(qn("r:id"), relationship)
-        run = OxmlElement("w:r")
-        properties = OxmlElement("w:rPr")
-        color = OxmlElement("w:color")
-        color.set(qn("w:val"), "0563C1")
-        properties.append(color)
-        underline = OxmlElement("w:u")
-        underline.set(qn("w:val"), "single")
-        properties.append(underline)
-        run.append(properties)
-        node = OxmlElement("w:t")
-        node.text = text
-        run.append(node)
-        hyperlink.append(run)
-        paragraph._p.append(hyperlink)
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), relationship)
+    run = OxmlElement("w:r")
+    properties = OxmlElement("w:rPr")
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "0563C1")
+    properties.append(color)
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    properties.append(underline)
+    run.append(properties)
+    node = OxmlElement("w:t")
+    node.text = text
+    run.append(node)
+    hyperlink.append(run)
+    paragraph._p.append(hyperlink)
 
 
 def _add_docx_linkified(paragraph, text):
