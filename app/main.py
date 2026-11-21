@@ -90,39 +90,61 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
     if not job_description.strip():
         raise HTTPException(status_code=400, detail="A job description is required.")
     resume_text = await read_resume(resume)
+    match_result = await run_in_threadpool(match_resume_to_job, resume_text, job_description)
 
     system_prompt = (
-        "You are an expert resume editor. Return the complete tailored resume as plain text. "
-        "Preserve every factual claim, employer, title, date, qualification, project, metric, and skill. "
-        "Never invent experience, skills, credentials, dates, or measurable results. "
-        "You may reorganize, clarify, and improve wording using only evidence in the original resume. "
-        "Do not add unsupported job requirements. Keep useful contact details and section headings."
+        "You are a senior ATS resume writer. Produce a COMPLETE, polished, one-page-or-two-page "
+        "ATS-friendly resume tailored to the supplied job description. Return only the resume text, "
+        "not commentary or a report. Use standard headings: candidate name/contact, professional "
+        "summary, technical skills, projects or experience, education, certifications, achievements. "
+        "Only include sections supported by the source resume. Prioritize the exact matched skills and "
+        "the strongest evidence identified by the matching engine. Reorder and rewrite existing bullets "
+        "to foreground relevant tools, actions, and outcomes. Preserve all factual details, dates, "
+        "employers, project names, qualifications, and metrics. Never invent skills, experience, "
+        "certifications, employers, dates, or numerical results. Do not list missing job skills as if "
+        "the candidate has them. Do not include match percentages, gap-analysis notes, or the original "
+        "resume pasted wholesale. Use concise ATS-readable bullets, no columns, tables, icons, graphics, "
+        "or decorative characters. Keep contact details from the source."
     )
     user_prompt = (
-        "Tailor this resume to the job description.\n\nJOB DESCRIPTION:\n"
-        + job_description[:12000]
-        + "\n\nORIGINAL RESUME:\n"
-        + resume_text[:12000]
+        "Create the tailored ATS resume using the match report as prioritization guidance.\n\n"
+        f"TARGET JOB DESCRIPTION:\n{job_description[:12000]}\n\n"
+        f"MATCH REPORT:\nOverall match: {match_result.get('overall_match_score', 0)}%\n"
+        f"Skill match: {match_result.get('skill_match_score', 0)}%\n"
+        f"Matched skills (candidate has evidence): {', '.join(match_result.get('matched_skills', []))}\n"
+        f"Missing skills (DO NOT claim these): {', '.join(match_result.get('missing_skills', []))}\n"
+        f"Relevant resume evidence: {match_result.get('retrieved_resume_evidence', [])}\n\n"
+        f"ORIGINAL RESUME (sole source of candidate facts):\n{resume_text[:14000]}"
     )
+    generation_mode = "ai"
+    note = "ATS-formatted resume generated using your match report. Verify every claim before applying."
     try:
-        tailored = await run_in_threadpool(chat_completion,
+        tailored = await run_in_threadpool(
+            chat_completion,
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             max_tokens=7000,
         )
+        if len(tailored.strip()) < 300 or "as an ai" in tailored.lower()[:500]:
+            raise AIProviderError("Provider returned an incomplete resume.")
     except AIProviderError:
-        # Keep tailoring available during Gemini outages. The local fallback
-        # only reorders evidence and skills already present in the source resume.
         tailored = build_local_tailored_resume(resume_text, job_description)
-        return {
-            "tailored_resume": tailored,
-            "generation_mode": "local_fallback",
-            "note": "AI provider was temporarily unavailable. This evidence-based local draft uses only information in your original resume; review it before submitting.",
-        }
+        generation_mode = "evidence_based_fallback"
+        note = (
+            "AI providers were unavailable. This structured fallback reorganizes existing resume "
+            "evidence around the scored role match; it does not invent missing qualifications."
+        )
+
+    from app.services.resume_document import build_ats_docx
+    import base64
+
+    docx_bytes = await run_in_threadpool(build_ats_docx, tailored)
     return {
         "tailored_resume": tailored,
-        "generation_mode": "ai",
-        "note": "Review every detail before using or submitting this resume.",
+        "generation_mode": generation_mode,
+        "note": note,
+        "download_filename": "NextRole_ATS_Tailored_Resume.docx",
+        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
     }
