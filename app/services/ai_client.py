@@ -85,17 +85,20 @@ def chat_completion(messages, *, response_format=None, max_tokens=6000):
         method="POST",
     )
 
-    # Retry brief provider capacity/network spikes; do not retry permanent errors.
-    for attempt in range(3):
+    # Keep each provider attempt bounded so Render's request proxy does not
+    # time out first. A second attempt is enough for brief capacity spikes;
+    # callers fall back to deterministic local results on provider failure.
+    timeout = float(os.getenv("AI_REQUEST_TIMEOUT_SECONDS", "12"))
+    for attempt in range(2):
         try:
-            with urlopen(request, timeout=60) as response:
+            with urlopen(request, timeout=timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
             break
         except HTTPError as exc:
             detail = _error_detail(exc.read())
-            if exc.code in (429, 500, 502, 503, 504) and attempt < 2:
+            if exc.code in (429, 500, 502, 503, 504) and attempt < 1:
                 import time
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.0)
                 continue
             if exc.code in (401, 403):
                 raise AIProviderError(
@@ -106,9 +109,9 @@ def chat_completion(messages, *, response_format=None, max_tokens=6000):
                 f"{provider} API returned HTTP {exc.code}: {detail}"
             ) from None
         except (URLError, TimeoutError) as exc:
-            if attempt < 2:
+            if attempt < 1:
                 import time
-                time.sleep(1.5 * (attempt + 1))
+                time.sleep(1.0)
                 continue
             raise AIProviderError(
                 f"Could not reach {provider}: {type(exc).__name__}."
