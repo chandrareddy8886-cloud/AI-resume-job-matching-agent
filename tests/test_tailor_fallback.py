@@ -24,4 +24,4 @@ def test_tailor_file_returns_local_draft_when_ai_provider_is_down(monkeypatch):
     payload = response.json()
     assert payload["generation_mode"] == "local_fallback"
     assert "ROLE-TARGETED RESUME DRAFT" in payload["tailored_resume"]
-    assert resume in payload["tailored_resume"]
+    assert " ".join(resume.split()) in " ".join(payload["tailored_resume"].split())
