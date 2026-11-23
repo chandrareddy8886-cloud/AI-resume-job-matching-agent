@@ -132,7 +132,28 @@ async def tailor_file(resume: UploadFile = File(...), job_description: str = For
             raise AIProviderError("Provider returned an incomplete resume.")
         quality = validate_tailored_resume(resume_text, tailored)
         if not quality.passed:
-            raise AIProviderError("AI draft failed factuality checks: " + "; ".join(quality.issues))
+            correction_prompt = (
+                "Your previous resume draft failed deterministic factuality checks. "
+                "Rewrite it now. Fix EVERY issue listed below. Do not add tools, skills, dates, "
+                "metrics, employers, or qualifications unless they appear in the original resume. "
+                "Retain every original year, number, email address, and URL exactly. "
+                "Return only the corrected complete resume.\n\n"
+                "QUALITY ISSUES:\n- " + "\n- ".join(quality.issues) +
+                "\n\nORIGINAL RESUME (only source of facts):\n" + resume_text[:14000] +
+                "\n\nPREVIOUS DRAFT (for correction only):\n" + tailored[:14000]
+            )
+            tailored = await run_in_threadpool(
+                chat_completion,
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": correction_prompt},
+                ],
+                max_tokens=7000,
+            )
+            quality = validate_tailored_resume(resume_text, tailored)
+            if len(tailored.strip()) < 300 or not quality.passed:
+                issues = "; ".join(quality.issues) or "Provider returned an incomplete resume."
+                raise AIProviderError("AI draft failed factuality checks after correction: " + issues)
     except AIProviderError as exc:
         tailored = build_local_tailored_resume(resume_text, job_description)
         generation_mode = "evidence_based_fallback"
